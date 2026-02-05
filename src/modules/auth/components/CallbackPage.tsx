@@ -5,7 +5,7 @@
 
 import { useNavigate } from '@tanstack/react-router'
 import { AlertCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { useAuthCallback } from '@/infra/auth'
 import { pkceStorage } from '@/infra/auth/pkce'
@@ -23,8 +23,12 @@ export function CallbackPage() {
   const [error, setError] = useState<string | null>(null)
   const { handleCallback } = useAuthCallback()
   const navigate = useNavigate()
+  const processedRef = useRef(false)
 
   useEffect(() => {
+    if (processedRef.current) return
+    processedRef.current = true
+
     const processCallback = async () => {
       try {
         await handleCallback(window.location.href)

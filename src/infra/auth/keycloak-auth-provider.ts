@@ -6,84 +6,108 @@
 import { env } from '@/infra/config/env'
 import { generateNonce, generatePKCE, generateState, pkceStorage } from './pkce'
 import { sessionStorage_ } from './session-storage'
-import type { AuthProvider, AuthSession, AuthUser } from './types'
+import { buildSessionFromTokens, type KeycloakTokenResponse } from './keycloak-token'
+import type { AuthProvider, AuthSession } from './types'
 
-type TokenResponse = {
-  access_token: string
+/** Basic auth header for public client (client_id with empty secret) - required by some Keycloak versions */
+function basicAuthHeader(clientId: string): string {
+  return `Basic ${btoa(`${clientId}:`)}`
+}
+
+type TokenRequestParams = {
+  grant_type: 'authorization_code' | 'refresh_token'
+  code?: string
+  redirect_uri?: string
+  code_verifier?: string
   refresh_token?: string
-  id_token?: string
-  expires_in: number
-  token_type: string
 }
 
-type TokenPayload = {
-  sub: string
-  email?: string
-  name?: string
-  given_name?: string
-  family_name?: string
-  preferred_username?: string
-  realm_access?: {
-    roles?: string[]
-  }
-  resource_access?: Record<
-    string,
-    {
-      roles?: string[]
-    }
-  >
-  exp: number
+function buildTokenBody(clientId: string, params: TokenRequestParams): URLSearchParams {
+  const body = new URLSearchParams({ grant_type: params.grant_type, client_id: clientId })
+
+  if (params.code) body.set('code', params.code)
+  if (params.redirect_uri) body.set('redirect_uri', params.redirect_uri)
+  if (params.code_verifier) body.set('code_verifier', params.code_verifier)
+  if (params.refresh_token) body.set('refresh_token', params.refresh_token)
+
+  return body
 }
 
-function decodeJwtPayload(token: string): TokenPayload {
-  const base64Url = token.split('.')[1]
-  if (!base64Url) throw new Error('Invalid token format')
+async function requestTokens(
+  endpoint: string,
+  clientId: string,
+  params: TokenRequestParams
+): Promise<KeycloakTokenResponse> {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: basicAuthHeader(clientId),
+    },
+    body: buildTokenBody(clientId, params),
+  })
 
-  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-  const jsonPayload = decodeURIComponent(
-    atob(base64)
-      .split('')
-      .map((c) => `%${`00${c.charCodeAt(0).toString(16)}`.slice(-2)}`)
-      .join('')
-  )
+  if (!response.ok) {
+    const errorBody = await response.text()
+    throw new Error(`Token request failed: ${errorBody || response.statusText}`)
+  }
 
-  return JSON.parse(jsonPayload)
+  return response.json()
 }
 
-function extractRoles(payload: TokenPayload, clientId: string): string[] {
-  const roles: string[] = []
-
-  // Realm roles
-  if (payload.realm_access?.roles) {
-    roles.push(...payload.realm_access.roles)
-  }
-
-  // Client-specific roles
-  if (payload.resource_access?.[clientId]?.roles) {
-    roles.push(...payload.resource_access[clientId].roles)
-  }
-
-  return [...new Set(roles)]
+/** URL base para redirects (login/logout). Sempre a URL real do Keycloak para a página de login carregar corretamente (CSS/JS do tema). */
+function getKeycloakBaseUrlForRedirect(): string {
+  return env.keycloak.url
 }
 
-function extractUser(payload: TokenPayload): AuthUser {
-  return {
-    id: payload.sub,
-    email: payload.email ?? payload.preferred_username ?? '',
-    name: payload.name ?? payload.preferred_username ?? '',
-    firstName: payload.given_name,
-    lastName: payload.family_name,
+/** URL base para fetch (token, refresh). Em dev com proxy, usa o proxy para evitar CORS. */
+function getKeycloakBaseUrlForFetch(): string {
+  const { url, proxyPath } = env.keycloak
+  if (env.isDev && proxyPath && typeof window !== 'undefined') {
+    return `${window.location.origin}${proxyPath}`
   }
+  return url
 }
 
 export function createKeycloakAuthProvider(): AuthProvider {
-  const { url, realm, clientId } = env.keycloak
+  const { realm, clientId } = env.keycloak
   const { redirectUri, postLogoutRedirectUri } = env.auth
 
-  const baseUrl = `${url}/realms/${realm}/protocol/openid-connect`
+  const baseForRedirect = getKeycloakBaseUrlForRedirect()
+  const baseForFetch = getKeycloakBaseUrlForFetch()
+
+  const realmBaseRedirect = `${baseForRedirect}/realms/${realm}`
+  const realmBaseFetch = `${baseForFetch}/realms/${realm}`
+
+  const authEndpoint = `${realmBaseRedirect}/protocol/openid-connect/auth`
+  const tokenEndpoint = `${realmBaseFetch}/protocol/openid-connect/token`
+  const logoutEndpoint = `${realmBaseRedirect}/protocol/openid-connect/logout`
 
   let currentSession: AuthSession | null = null
   let refreshPromise: Promise<void> | null = null
+
+  const persistSession = (tokens: KeycloakTokenResponse): void => {
+    const session = buildSessionFromTokens(tokens, clientId)
+
+    if (currentSession) {
+      session.refreshToken = session.refreshToken ?? currentSession.refreshToken
+      session.idToken = session.idToken ?? currentSession.idToken
+    }
+
+    currentSession = session
+    sessionStorage_.save(session)
+  }
+
+  const clearSession = (): void => {
+    currentSession = null
+    sessionStorage_.clear()
+  }
+
+  const clearPkce = (): void => {
+    pkceStorage.clearCodeVerifier()
+    pkceStorage.clearState()
+    pkceStorage.clearNonce()
+  }
 
   const provider: AuthProvider = {
     async init(): Promise<void> {
@@ -98,10 +122,10 @@ export function createKeycloakAuthProvider(): AuthProvider {
               await provider.refreshIfNeeded()
               return
             } catch {
-              sessionStorage_.clear()
+              clearSession()
             }
           } else {
-            sessionStorage_.clear()
+            clearSession()
           }
         } else {
           currentSession = stored
@@ -135,7 +159,7 @@ export function createKeycloakAuthProvider(): AuthProvider {
         code_challenge_method: pkce.codeChallengeMethod,
       })
 
-      window.location.href = `${baseUrl}/auth?${params.toString()}`
+      window.location.href = `${authEndpoint}?${params.toString()}`
     },
 
     async handleCallback(url: string): Promise<void> {
@@ -170,58 +194,24 @@ export function createKeycloakAuthProvider(): AuthProvider {
       }
 
       // Exchange code for tokens
-      const tokenResponse = await fetch(`${baseUrl}/token`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          client_id: clientId,
-          code,
-          redirect_uri: redirectUri,
-          code_verifier: codeVerifier,
-        }),
+      const tokens = await requestTokens(tokenEndpoint, clientId, {
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        code_verifier: codeVerifier,
       })
 
-      if (!tokenResponse.ok) {
-        pkceStorage.clearAll()
-        const errorBody = await tokenResponse.text()
-        throw new Error(`Token exchange failed: ${errorBody}`)
-      }
-
-      const tokens: TokenResponse = await tokenResponse.json()
-
-      // Parse token to extract user info and roles
-      const payload = decodeJwtPayload(tokens.access_token)
-
-      // Create session
-      currentSession = {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        idToken: tokens.id_token,
-        expiresAt: Date.now() + tokens.expires_in * 1000,
-        user: extractUser(payload),
-        roles: extractRoles(payload, clientId),
-      }
-
-      // Save session
-      if (currentSession) {
-        sessionStorage_.save(currentSession)
-      }
+      persistSession(tokens)
 
       // Clean up PKCE storage (but keep returnTo for redirect)
-      pkceStorage.clearCodeVerifier()
-      pkceStorage.clearState()
-      pkceStorage.clearNonce()
+      clearPkce()
     },
 
     async logout(): Promise<void> {
       const idToken = currentSession?.idToken
 
       // Clear local session
-      currentSession = null
-      sessionStorage_.clear()
+      clearSession()
       pkceStorage.clearAll()
 
       // Build logout URL
@@ -233,7 +223,7 @@ export function createKeycloakAuthProvider(): AuthProvider {
         params.set('id_token_hint', idToken)
       }
 
-      window.location.href = `${baseUrl}/logout?${params.toString()}`
+      window.location.href = `${logoutEndpoint}?${params.toString()}`
     },
 
     getSession(): AuthSession | null {
@@ -259,43 +249,18 @@ export function createKeycloakAuthProvider(): AuthProvider {
         return
       }
 
+      const refreshToken = currentSession.refreshToken
+
       refreshPromise = (async () => {
         try {
-          const response = await fetch(`${baseUrl}/token`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-              grant_type: 'refresh_token',
-              client_id: clientId,
-              refresh_token: currentSession?.refreshToken ?? '',
-            }),
+          const tokens = await requestTokens(tokenEndpoint, clientId, {
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
           })
 
-          if (!response.ok) {
-            throw new Error('Refresh token failed')
-          }
-
-          const tokens: TokenResponse = await response.json()
-          const payload = decodeJwtPayload(tokens.access_token)
-
-          currentSession = {
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token ?? currentSession?.refreshToken,
-            idToken: tokens.id_token ?? currentSession?.idToken,
-            expiresAt: Date.now() + tokens.expires_in * 1000,
-            user: extractUser(payload),
-            roles: extractRoles(payload, clientId),
-          }
-
-          if (currentSession) {
-            sessionStorage_.save(currentSession)
-          }
+          persistSession(tokens)
         } catch (error) {
-          // Refresh failed - clear session
-          currentSession = null
-          sessionStorage_.clear()
+          clearSession()
           throw error
         } finally {
           refreshPromise = null

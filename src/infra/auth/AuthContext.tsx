@@ -118,11 +118,13 @@ export function useAuth(): AuthContextValue {
 
 // Hook for handling auth callback
 export function useAuthCallback() {
-  const authProvider = useMemo(() => getAuthProvider(), [])
+  const authProvider = getAuthProvider()
 
   const handleCallback = useCallback(
     async (url: string) => {
       await authProvider.handleCallback(url)
+
+
     },
     [authProvider]
   )

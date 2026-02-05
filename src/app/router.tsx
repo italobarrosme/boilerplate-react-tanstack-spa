@@ -12,7 +12,13 @@ export const router = createRouter({
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,
   context: {
-    auth: undefined!,
+    auth: {
+      isAuthenticated: false,
+      isLoading: false,
+      session: null,
+      user: null,
+      error: null,
+    } as AuthContextValue,
   },
 })
 

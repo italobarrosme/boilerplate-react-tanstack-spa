@@ -10,7 +10,7 @@ function getEnvVar(key: string, required = true): string {
     throw new Error(`Missing required environment variable: ${key}`)
   }
 
-  return value ?? ''
+  return (value ?? '') as string
 }
 
 export const env = {
@@ -22,6 +22,8 @@ export const env = {
     url: getEnvVar('VITE_KEYCLOAK_URL'),
     realm: getEnvVar('VITE_KEYCLOAK_REALM'),
     clientId: getEnvVar('VITE_KEYCLOAK_CLIENT_ID'),
+    /** Em dev: path do proxy no Vite para evitar CORS (ex: /auth-proxy). Deixe vazio em prod. */
+    proxyPath: getEnvVar('VITE_KEYCLOAK_PROXY_PATH', false),
   },
 
   // Auth Redirects
