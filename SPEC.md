@@ -40,7 +40,7 @@ O frontend consome um backend externo via APIs e será hospedado no **AWS Amplif
 
 ### 3.2 Roteamento & Estado de Servidor
 
-- **TanStack Router**: rotas type-safe, composição de rotas por módulo e guards previsíveis.
+- **TanStack Router**: rotas type-safe com **file-based routing** (plugin gera `routeTree.gen.ts` a partir de `src/app/routes/`). Guards em `beforeLoad` para rotas protegidas.
 - **TanStack Query**: padrão único para estado de servidor: cache, invalidation, retries, dedupe.
 
 ### 3.3 HTTP / Networking
@@ -72,9 +72,9 @@ O frontend consome um backend externo via APIs e será hospedado no **AWS Amplif
   - **Motivo**: leve, rápido, configuração declarativa em YAML.
   - Configuração em `lefthook.yml`
   - Hooks configurados:
-    - `pre-commit`: lint + format + typecheck
+    - `pre-commit`: lint + format (Biome check --write) + typecheck (tsc --noEmit)
     - `commit-msg`: validação de commit message (commitlint)
-    - `pre-push`: build + tests
+    - `pre-push`: build + test (npm run test:run)
 
 - **Commitlint**: validação de mensagens de commit.
   - **Motivo**: garante consistência nas mensagens seguindo Conventional Commits.
@@ -108,7 +108,7 @@ src/
   test/
     setup.ts          # Configuração global (mocks, cleanup)
     test-utils.tsx    # Providers e render customizado
-  
+
   infra/ui/components/
     Button.test.tsx   # Exemplo de teste de componente
 ```
@@ -133,21 +133,22 @@ npm run test:coverage  # Executa testes com cobertura
 
 #### Infra (global, fora dos módulos)
 
-- Auth Provider (Keycloak OIDC/PKCE)
-- HTTP Gateway (Ky + interceptores + adaptação)
-- Query Client (TanStack Query)
-- Router Setup (TanStack Router)
-- UI base (tokens, tema, componentes globais)
+- Auth: interface `AuthProvider` implementada por Keycloak (OIDC/PKCE); React expõe estado via `AuthContext` (`AuthProvider`, `useAuth`, `useAuthCallback`).
+- HTTP Gateway (Ky + interceptores + `setAuthErrorHandler` para 401/403)
+- Query Client (TanStack Query) + factory de query keys
+- Router: TanStack Router com file-based routes e contexto `auth`
+- UI base: tokens em `index.css` (@theme), componentes globais em `infra/ui/components`
 
 #### Módulos de negócio (`src/modules/...`)
 
-Cada módulo contém:
+Cada módulo pode conter:
 
 - `components/` → UI pura (presentational)
 - `hooks/` → regras de negócio do módulo (orquestra estado de servidor e UI)
 - `services/` → comunicação com API (via gateway)
-- `routes.tsx` → rotas do módulo
 - `types.ts` → tipos do domínio do módulo
+
+As **rotas** não ficam por módulo: são definidas em **file-based routing** em `src/app/routes/` (ver seção 5).
 
 ### 4.2 Fluxo de dependências (regra)
 
@@ -162,59 +163,62 @@ Cada módulo contém:
 ```
 src/
   app/                      # bootstrap do app (router, providers)
-    main.tsx
-    router.tsx
-    providers.tsx
+    main.tsx                # entry point
+    App.tsx                 # providers (Query, Auth, Router) e handler global 401/403
+    router.tsx              # createRouter + routeTree.gen
+    routeTree.gen.ts        # gerado pelo @tanstack/router-plugin (não editar)
+    routes/                 # file-based routing (TanStack Router)
+      __root.tsx
+      _authenticated.tsx    # layout protegido + beforeLoad guard
+      _authenticated/
+        index.tsx
+        users/
+          index.tsx
+          $userId.tsx
+      auth/
+        login.tsx
+        callback.tsx
+      forbidden.tsx
 
   infra/                    # infraestrutura global (fora dos módulos)
     auth/
       types.ts
-      auth-provider.ts
+      AuthContext.tsx       # AuthProvider React + useAuth, useAuthCallback
       keycloak-auth-provider.ts
-      useAuth.ts
+      keycloak-token.ts
+      pkce.ts
+      session-storage.ts
     http/
       types.ts
       api-gateway.ts
-      ky-client.ts
-      errors.ts
+      ky-client.ts          # kyClient + kyPublicClient, setAuthErrorHandler
+      errors.ts             # ApiError, NetworkError, etc.
     query/
-      query-client.ts
+      query-client.ts       # queryClient + queryKeys
     ui/
-      tokens/
-      theme/
-      components/           # wrappers globais (ex: Layout, Shell, etc.)
+      components/           # wrappers globais (AppShell, Button, Card, Input, LoadingScreen)
     config/
       env.ts
 
   modules/
-    auth/
+    auth/                   # telas de login, callback, forbidden
       components/
-      hooks/
-      services/
-      routes.tsx
       types.ts
-    billing/
+    common/                 # componentes compartilhados entre módulos
       components/
-      hooks/
-      services/
-      routes.tsx
-      types.ts
+    dashboard/
+      components/
     users/
       components/
       hooks/
       services/
-      routes.tsx
-      types.ts
-    reports/
-      components/
-      hooks/
-      services/
-      routes.tsx
       types.ts
 
-  shared/                   # utilitários puros e tipos compartilháveis
-    types/
-    utils/
+  shared/                   # utilitários puros compartilháveis
+    utils/                  # ex: cn (classnames)
+  test/
+    setup.ts
+    test-utils.tsx
 ```
 
 ### Regras:
@@ -235,10 +239,10 @@ src/
 
 ```typescript
 type UserListProps = {
-  users: User[]
-  isLoading: boolean
-  onRefresh: () => void
-}
+  users: User[];
+  isLoading: boolean;
+  onRefresh: () => void;
+};
 
 export function UserList({ users, isLoading, onRefresh }: UserListProps) {
   // apenas render
@@ -358,24 +362,25 @@ Ao inicializar o app, Auth Provider:
 
 ```typescript
 export type AuthSession = {
-  accessToken: string
-  refreshToken?: string
-  idToken?: string
-  expiresAt: number // epoch ms
-  roles?: string[]
-}
+  accessToken: string;
+  refreshToken?: string;
+  idToken?: string;
+  expiresAt: number; // epoch ms
+  user?: AuthUser;
+  roles: string[];
+};
 
 export interface AuthProvider {
-  init(): Promise<void>
-  login(returnTo?: string): Promise<void>
-  handleCallback(url: string): Promise<void>
-  logout(): Promise<void>
+  init(): Promise<void>;
+  login(returnTo?: string): Promise<void>;
+  handleCallback(url: string): Promise<void>;
+  logout(): Promise<void>;
 
-  getSession(): AuthSession | null
-  getAccessToken(): Promise<string | null>
-  refreshIfNeeded(): Promise<void>
-  isAuthenticated(): boolean
-  hasRole(role: string): boolean
+  getSession(): AuthSession | null;
+  getAccessToken(): Promise<string | null>;
+  refreshIfNeeded(): Promise<void>;
+  isAuthenticated(): boolean;
+  hasRole(role: string): boolean;
 }
 ```
 
@@ -422,20 +427,21 @@ export interface AuthProvider {
 
 ### 7.7 Tratamento global de 401 / 403
 
+O `ky-client` chama um handler registrado no app (`setAuthErrorHandler` em `App.tsx`). Assim, 401/403 são tratados em um único lugar, sem acoplar o gateway à UI.
+
 #### 401 (Unauthorized)
 
 Significa token ausente/inválido/expirado.
 
-**Ação:**
+**Ação (no handler):**
 
-- tentar `refreshIfNeeded()`
-- se persistir → limpar sessão e redirecionar para `/auth/login`
+- O gateway já tentou `refreshIfNeeded()` antes do request; se a resposta veio 401, redirecionar para `/auth/login` (ex.: `window.location.href = '/auth/login'`).
 
 #### 403 (Forbidden)
 
 Token válido, mas sem permissão.
 
-**Ação:**
+**Ação (no handler):**
 
 - redirecionar para `/forbidden`
 - não tenta refresh
@@ -450,10 +456,10 @@ Token válido, mas sem permissão.
 
 ### 8.2 Convenções obrigatórias
 
-**queryKey** sempre em formato estável e previsível:
+**queryKey** sempre em formato estável e previsível. O projeto centraliza factories em `infra/query/query-client.ts` (`queryKeys`), por exemplo:
 
-- `['users', 'list', params]`
-- `['billing', 'invoices', invoiceId]`
+- `queryKeys.users.list(params)` → `['users', 'list', params]`
+- `queryKeys.users.detail(id)` → `['users', 'detail', id]`
 
 `services/` não conhece TanStack Query (é agnóstico).
 
@@ -480,28 +486,52 @@ Garantir que Ky seja um detalhe de infraestrutura, substituível sem impacto nos
 ### 9.2 Contrato do gateway
 
 ```typescript
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export type RequestOptions = {
-  query?: Record<string, string | number | boolean | undefined>
-  headers?: Record<string, string>
-  body?: unknown
-  signal?: AbortSignal
-}
+  query?: Record<string, string | number | boolean | undefined>;
+  headers?: Record<string, string>;
+  body?: unknown;
+  signal?: AbortSignal;
+  /** Não anexar token (endpoints públicos); usa kyPublicClient */
+  skipAuth?: boolean;
+};
 
 export interface ApiGateway {
-  request<TResponse>(method: HttpMethod, path: string, options?: RequestOptions): Promise<TResponse>
+  request<TResponse>(
+    method: HttpMethod,
+    path: string,
+    options?: RequestOptions
+  ): Promise<TResponse>;
+  get<TResponse>(
+    path: string,
+    options?: Omit<RequestOptions, "body">
+  ): Promise<TResponse>;
+  post<TResponse>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<TResponse>;
+  put<TResponse>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<TResponse>;
+  patch<TResponse>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<TResponse>;
+  delete<TResponse>(path: string, options?: RequestOptions): Promise<TResponse>;
 }
 ```
 
 ### 9.3 Implementação com Ky (`infra/http`)
 
-`ky-client.ts` configura:
+`ky-client.ts` expõe:
 
-- `prefixUrl` (base URL)
-- headers comuns
-- timeout e retry padronizados
-- hooks para anexar token e tratar erros
+- **kyClient**: prefixUrl (env.apiBaseUrl), timeout, retry, hooks para token e tratamento de 401/403 (via `setAuthErrorHandler`).
+- **kyPublicClient**: mesmo setup sem auth (para endpoints públicos ou quando `skipAuth: true`).
 
 **Regra:** módulos não importam `ky-client.ts`, apenas `api-gateway.ts`.
 
@@ -517,9 +547,8 @@ Antes de request:
 
 ### 10.1 Tailwind v4
 
-- Tokens centralizados em `infra/ui/tokens/` e `infra/ui/theme/`.
-- Padrões de classes e escala:
-  - fontes, espaçamentos, radius, shadows e cores devem derivar dos tokens.
+- Tokens centralizados em `src/index.css` via `@theme` (cores, radius, shadows, fontes, animações). Suporte a dark mode com `prefers-color-scheme: dark`.
+- Padrões de classes e escala: fontes, espaçamentos, radius, shadows e cores derivam dos tokens.
 
 ### 10.2 shadcn/ui
 
@@ -534,7 +563,7 @@ Componentes shadcn devem ser:
 
 ### 10.3 Regra de composição
 
-- Componentes globais de layout (Shell, Topbar, Sidebar) ficam em `infra/ui/components`.
+- Componentes globais de layout (ex: AppShell) ficam em `infra/ui/components`.
 - Componentes de negócio ficam no módulo correspondente.
 
 ## 11. Deploy no AWS Amplify (CRÍTICO)
@@ -554,7 +583,7 @@ npm run build
 dist
 ```
 
-**Observação:** Vite gera build estático em `dist/` por padrão.
+**Observação:** O projeto define `outDir: 'dist'` no `vite.config.ts`. O build executa `tsc -b && vite build` (typecheck antes do build).
 
 ### 11.2 SPA Rewrite (todas as rotas → index.html)
 
@@ -590,6 +619,7 @@ Configurar no Amplify:
 - `VITE_KEYCLOAK_REALM`
 - `VITE_KEYCLOAK_CLIENT_ID`
 - `VITE_AUTH_REDIRECT_URI`
+- `VITE_AUTH_POST_LOGOUT_REDIRECT_URI`
 
 ### 11.4 Considerações de cache/CDN
 
@@ -616,14 +646,15 @@ Arquivo de validação e leitura centralizada: `src/infra/config/env.ts`
 
 ### Lista mínima:
 
-| Variável | Obrigatória | Exemplo | Uso |
-|----------|-------------|---------|-----|
-| `VITE_API_BASE_URL` | ✅ | `https://api.externa.com` | Base URL do backend |
-| `VITE_KEYCLOAK_URL` | ✅ | `https://sso.empresa.com` | Host do Keycloak |
-| `VITE_KEYCLOAK_REALM` | ✅ | `backoffice` | Realm |
-| `VITE_KEYCLOAK_CLIENT_ID` | ✅ | `backoffice-spa` | Client ID |
-| `VITE_AUTH_REDIRECT_URI` | ✅ | `https://app.com/auth/callback` | Callback OIDC |
-| `VITE_AUTH_POST_LOGOUT_REDIRECT_URI` | ✅ | `https://app.com/auth/login` | Pós-logout |
+| Variável                             | Obrigatória | Exemplo                         | Uso                                                                    |
+| ------------------------------------ | ----------- | ------------------------------- | ---------------------------------------------------------------------- |
+| `VITE_API_BASE_URL`                  | ✅          | `https://api.externa.com`       | Base URL do backend                                                    |
+| `VITE_KEYCLOAK_URL`                  | ✅          | `https://sso.empresa.com`       | Host do Keycloak                                                       |
+| `VITE_KEYCLOAK_REALM`                | ✅          | `backoffice`                    | Realm                                                                  |
+| `VITE_KEYCLOAK_CLIENT_ID`            | ✅          | `backoffice-spa`                | Client ID                                                              |
+| `VITE_KEYCLOAK_PROXY_PATH`           | ❌          | `/auth-proxy`                   | Em dev: path do proxy Vite para Keycloak (evitar CORS). Vazio em prod. |
+| `VITE_AUTH_REDIRECT_URI`             | ✅          | `https://app.com/auth/callback` | Callback OIDC                                                          |
+| `VITE_AUTH_POST_LOGOUT_REDIRECT_URI` | ✅          | `https://app.com/auth/login`    | Pós-logout                                                             |
 
 ## 13. Setup Inicial (do zero)
 
@@ -668,10 +699,12 @@ npm run preview
 - `modules/*` não importa de outro módulo diretamente (evitar acoplamento cruzado).
 - Compartilhamento só via `shared/`.
 
-### 14.4 Estrutura de rotas por módulo
+### 14.4 Estrutura de rotas
 
-- Cada módulo exporta suas rotas em `routes.tsx`.
-- `app/router.tsx` compõe todas as rotas dos módulos.
+- Rotas são **file-based** em `src/app/routes/`, com o **TanStack Router Plugin** (Vite) gerando `routeTree.gen.ts`.
+- Layout protegido: rota layout `_authenticated` com `beforeLoad` que redireciona para `/auth/login` quando `!context.auth.isAuthenticated` (search `redirect` guarda a URL de retorno).
+- Rotas públicas: `auth/login`, `auth/callback`, `forbidden`. Demais rotas filhas de `_authenticated` são privadas.
+- O router é criado em `app/router.tsx` com `routeTree` e contexto `auth` injetado pelo `AuthProvider` em `App.tsx`.
 
 ## 15. Pontos de Evolução Futura (sem retrabalho)
 
