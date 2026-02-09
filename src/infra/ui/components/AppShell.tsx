@@ -3,7 +3,7 @@
  */
 
 import { Link, useRouter } from '@tanstack/react-router'
-import { Home, LogOut, Menu, Users, X } from 'lucide-react'
+import { Home, LogOut, Menu, Palette, Users, X } from 'lucide-react'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 
@@ -16,6 +16,7 @@ type AppShellProps = {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Users', href: '/users', icon: Users },
+  { name: 'Design System', href: '/design-system', icon: Palette },
 ]
 
 export function AppShell({ children }: AppShellProps) {
