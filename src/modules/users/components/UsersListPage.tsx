@@ -1,6 +1,6 @@
 /**
- * Users list page component
- * Presentational - composes UI components with data from hooks
+ * Componente da página de listagem de usuários.
+ * Apresentacional — compõe componentes de UI com dados dos hooks.
  */
 
 import { Link } from '@tanstack/react-router'

@@ -1,5 +1,5 @@
 /**
- * Main application shell with sidebar and header
+ * Shell principal da aplicação com sidebar e header.
  */
 
 import { Link, useRouter } from '@tanstack/react-router'

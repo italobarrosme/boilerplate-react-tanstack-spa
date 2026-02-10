@@ -1,5 +1,5 @@
 /**
- * HTTP types for the API Gateway abstraction
+ * Tipos HTTP para a abstração do API Gateway.
  */
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -9,7 +9,7 @@ export type RequestOptions = {
   headers?: Record<string, string>
   body?: unknown
   signal?: AbortSignal
-  /** Skip auth token attachment */
+  /** Não anexar token de auth na requisição */
   skipAuth?: boolean
 }
 

@@ -1,5 +1,5 @@
 /**
- * API Error types and handling
+ * Tipos e tratamento de erros da API.
  */
 
 export type ApiErrorDetails = {

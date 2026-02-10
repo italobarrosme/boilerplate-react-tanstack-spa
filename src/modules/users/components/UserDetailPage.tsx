@@ -1,6 +1,6 @@
 /**
- * User detail page component
- * Presentational - composes UI components with data from hooks
+ * Componente da página de detalhe do usuário.
+ * Apresentacional — compõe componentes de UI com dados dos hooks.
  */
 
 import { Link, useParams } from '@tanstack/react-router'

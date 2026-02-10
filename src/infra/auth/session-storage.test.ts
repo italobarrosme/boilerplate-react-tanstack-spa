@@ -1,6 +1,6 @@
 /**
- * Unit tests for session storage helpers (expiry and "expiring soon" logic)
- * Used by the auth provider to decide when to refresh the access token
+ * Testes unitários dos helpers de session storage (expiry e lógica de "expirando em breve").
+ * Usados pelo auth provider para decidir quando dar refresh no access token.
  */
 
 import { afterEach, describe, expect, it } from 'vitest'

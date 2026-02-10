@@ -1,12 +1,15 @@
 /**
- * Design System showcase: tokens and UI components
- * Presentational page for documentation/reference
+ * Showcase do Design System: tokens e componentes de UI.
+ * Página apresentacional para documentação/referência.
  */
 
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@/infra/ui/components'
 
 const colorTokens = [
-  { name: 'brand', scale: ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'] },
+  {
+    name: 'brand',
+    scale: ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'],
+  },
   { name: 'gold', scale: ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900'] },
 ] as const
 
@@ -182,7 +185,9 @@ export function DesignSystemPage() {
               <CardTitle>Outro exemplo</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">Estrutura: Card, CardHeader, CardTitle, CardContent (e opcional CardFooter).</p>
+              <p className="text-sm text-muted-foreground">
+                Estrutura: Card, CardHeader, CardTitle, CardContent (e opcional CardFooter).
+              </p>
             </CardContent>
           </Card>
         </div>

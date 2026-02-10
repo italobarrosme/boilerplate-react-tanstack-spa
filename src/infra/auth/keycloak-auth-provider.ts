@@ -1,73 +1,18 @@
 /**
- * Keycloak OIDC Auth Provider implementation
- * Implements Authorization Code Flow with PKCE
+ * Implementação do Auth Provider OIDC com Keycloak.
+ * Implementa o fluxo Authorization Code com PKCE.
  */
 
 import { env } from '@/infra/config/env'
+import {
+  getKeycloakBaseUrlForFetch,
+  getKeycloakBaseUrlForRedirect,
+  requestTokens,
+} from './keycloak-auth-helpers'
+import { type KeycloakTokenResponse, buildSessionFromTokens } from './keycloak-token'
 import { generateNonce, generatePKCE, generateState, pkceStorage } from './pkce'
 import { sessionStorage_ } from './session-storage'
-import { buildSessionFromTokens, type KeycloakTokenResponse } from './keycloak-token'
 import type { AuthProvider, AuthSession } from './types'
-
-/** Basic auth header for public client (client_id with empty secret) - required by some Keycloak versions */
-function basicAuthHeader(clientId: string): string {
-  return `Basic ${btoa(`${clientId}:`)}`
-}
-
-type TokenRequestParams = {
-  grant_type: 'authorization_code' | 'refresh_token'
-  code?: string
-  redirect_uri?: string
-  code_verifier?: string
-  refresh_token?: string
-}
-
-function buildTokenBody(clientId: string, params: TokenRequestParams): URLSearchParams {
-  const body = new URLSearchParams({ grant_type: params.grant_type, client_id: clientId })
-
-  if (params.code) body.set('code', params.code)
-  if (params.redirect_uri) body.set('redirect_uri', params.redirect_uri)
-  if (params.code_verifier) body.set('code_verifier', params.code_verifier)
-  if (params.refresh_token) body.set('refresh_token', params.refresh_token)
-
-  return body
-}
-
-async function requestTokens(
-  endpoint: string,
-  clientId: string,
-  params: TokenRequestParams
-): Promise<KeycloakTokenResponse> {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: basicAuthHeader(clientId),
-    },
-    body: buildTokenBody(clientId, params),
-  })
-
-  if (!response.ok) {
-    const errorBody = await response.text()
-    throw new Error(`Token request failed: ${errorBody || response.statusText}`)
-  }
-
-  return response.json()
-}
-
-/** URL base para redirects (login/logout). Sempre a URL real do Keycloak para a página de login carregar corretamente (CSS/JS do tema). */
-function getKeycloakBaseUrlForRedirect(): string {
-  return env.keycloak.url
-}
-
-/** URL base para fetch (token, refresh). Em dev com proxy, usa o proxy para evitar CORS. */
-function getKeycloakBaseUrlForFetch(): string {
-  const { url, proxyPath } = env.keycloak
-  if (env.isDev && proxyPath && typeof window !== 'undefined') {
-    return `${window.location.origin}${proxyPath}`
-  }
-  return url
-}
 
 export function createKeycloakAuthProvider(): AuthProvider {
   const { realm, clientId } = env.keycloak
@@ -110,6 +55,7 @@ export function createKeycloakAuthProvider(): AuthProvider {
   }
 
   const provider: AuthProvider = {
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
     async init(): Promise<void> {
       // Load session from storage
       const stored = sessionStorage_.get()
@@ -203,7 +149,6 @@ export function createKeycloakAuthProvider(): AuthProvider {
 
       persistSession(tokens)
 
-      // Clean up PKCE storage (but keep returnTo for redirect)
       clearPkce()
     },
 

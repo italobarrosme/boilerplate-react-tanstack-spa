@@ -1,5 +1,5 @@
 /**
- * Utility for merging Tailwind CSS classes
+ * Utilitário para mesclar classes do Tailwind CSS.
  */
 
 import { clsx } from 'clsx'

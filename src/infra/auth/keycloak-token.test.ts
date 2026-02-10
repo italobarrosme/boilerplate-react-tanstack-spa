@@ -1,6 +1,6 @@
 /**
- * Unit tests for Keycloak token parsing and session building
- * Validates buildSessionFromTokens (used after login and after refresh)
+ * Testes unitários de parsing de tokens Keycloak e construção de sessão.
+ * Valida buildSessionFromTokens (usado após login e após refresh).
  */
 
 import { describe, expect, it } from 'vitest'

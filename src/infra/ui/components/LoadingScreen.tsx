@@ -1,5 +1,5 @@
 /**
- * Full-screen loading indicator
+ * Indicador de carregamento em tela cheia.
  */
 
 import { Loader2 } from 'lucide-react'

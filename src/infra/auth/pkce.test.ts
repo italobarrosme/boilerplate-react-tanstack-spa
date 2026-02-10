@@ -1,6 +1,6 @@
 /**
- * Unit tests for PKCE (Proof Key for Code Exchange) utilities
- * Validates S256 challenge derivation and storage behavior
+ * Testes unitários dos utilitários PKCE (Proof Key for Code Exchange).
+ * Valida derivação do challenge S256 e comportamento do storage.
  */
 
 import { createHash } from 'node:crypto'

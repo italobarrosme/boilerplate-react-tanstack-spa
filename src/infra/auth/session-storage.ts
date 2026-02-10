@@ -1,8 +1,8 @@
 /**
- * Auth session store with Zustand
- * - Persists to sessionStorage (tab-scoped, not sent to server)
- * - Validates structure on rehydration; clears invalid data
- * - Tokens are never logged or exposed outside the store
+ * Store de sessão de auth com Zustand.
+ * - Persiste em sessionStorage (escopo por aba, não enviado ao servidor)
+ * - Valida estrutura na reidratação; limpa dados inválidos
+ * - Tokens nunca são logados ou expostos fora do store
  */
 
 import { create } from 'zustand'
@@ -11,10 +11,10 @@ import type { AuthSession } from './types'
 
 const STORAGE_KEY = 'auth_session'
 
-/** Buffer before expiry to consider session expired (ms) */
+/** Margem antes do expiry para considerar a sessão expirada (ms) */
 const EXPIRY_BUFFER_MS = 60 * 1000
 
-/** Default threshold for "expiring soon" (ms) */
+/** Limiar padrão para "expirando em breve" (ms) */
 const EXPIRING_SOON_THRESHOLD_MS = 5 * 60 * 1000
 
 function isValidSession(value: unknown): value is AuthSession {
@@ -52,7 +52,7 @@ export const useAuthSessionStore = create<AuthSessionState>()(
   )
 )
 
-/** Session helpers (pure; do not log session content) */
+/** Helpers de sessão (puros; não logam conteúdo da sessão) */
 function isExpired(session: AuthSession | null): boolean {
   if (!session) return true
   return Date.now() >= session.expiresAt - EXPIRY_BUFFER_MS
@@ -67,8 +67,8 @@ function isExpiringSoon(
 }
 
 /**
- * Imperative API for auth provider (non-React).
- * Same contract as before so keycloak-auth-provider does not depend on React.
+ * API imperativa para o auth provider (fora do React).
+ * Mesmo contrato de antes para o keycloak-auth-provider não depender de React.
  */
 export const sessionStorage_ = {
   save: (session: AuthSession): void => {

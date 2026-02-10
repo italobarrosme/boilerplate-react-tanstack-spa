@@ -1,5 +1,5 @@
 /**
- * Auth types - interface-based for SSO provider abstraction
+ * Tipos de auth — baseados em interface para abstração do provedor SSO.
  */
 
 export type AuthSession = {

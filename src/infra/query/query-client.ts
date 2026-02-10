@@ -1,5 +1,5 @@
 /**
- * TanStack Query client configuration
+ * Configuração do cliente TanStack Query.
  */
 
 import { QueryClient } from '@tanstack/react-query'

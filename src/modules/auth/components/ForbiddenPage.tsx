@@ -1,6 +1,6 @@
 /**
- * Forbidden (403) page
- * Shown when user doesn't have permission to access a resource
+ * Página Forbidden (403).
+ * Exibida quando o usuário não tem permissão para acessar o recurso.
  */
 
 import { Link } from '@tanstack/react-router'

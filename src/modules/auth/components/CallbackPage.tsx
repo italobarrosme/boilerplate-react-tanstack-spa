@@ -1,6 +1,6 @@
 /**
- * OAuth callback page
- * Handles the OIDC callback after authentication
+ * Página de callback OAuth.
+ * Trata o retorno OIDC após a autenticação.
  */
 
 import { useNavigate } from '@tanstack/react-router'

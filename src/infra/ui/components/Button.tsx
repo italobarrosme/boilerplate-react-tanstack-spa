@@ -1,6 +1,6 @@
 /**
- * Button component with variants
- * Presentational component - no business logic
+ * Componente Button com variantes.
+ * Apresentacional — sem lógica de negócio.
  */
 
 import { Loader2 } from 'lucide-react'

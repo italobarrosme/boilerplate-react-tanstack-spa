@@ -1,6 +1,6 @@
 /**
- * PKCE (Proof Key for Code Exchange) utilities
- * Used for OAuth2 Authorization Code Flow with PKCE
+ * Utilitários PKCE (Proof Key for Code Exchange).
+ * Usados no fluxo OAuth2 Authorization Code com PKCE.
  */
 
 function generateRandomString(length: number): string {
@@ -13,6 +13,13 @@ function generateRandomString(length: number): string {
     .join('')
 }
 
+/**
+ * Calcula o hash SHA-256 de uma string UTF-8 usando a Web Crypto API.
+ * Usado no fluxo PKCE para derivar o code_challenge a partir do code_verifier.
+ *
+ * @param plain - Texto em claro a ser hasheado (ex.: code_verifier)
+ * @returns Promise com o digest SHA-256 em binário (ArrayBuffer)
+ */
 async function sha256(plain: string): Promise<ArrayBuffer> {
   const encoder = new TextEncoder()
   const data = encoder.encode(plain)
@@ -33,6 +40,10 @@ export async function generatePKCE() {
   const hashed = await sha256(codeVerifier)
   const codeChallenge = base64UrlEncode(hashed)
 
+  // O verifier fica só no cliente; o challenge vai na URL de autorização;
+  // no callback o servidor compara o
+  // hash do verifier com o challenge.
+
   return {
     codeVerifier,
     codeChallenge,
@@ -46,6 +57,8 @@ export function generateState(): string {
 
 export function generateNonce(): string {
   return generateRandomString(32)
+  // Usada como nonce no OpenID Connect: enviada na autorização e
+  // refletida no ID token para associar o token à requisição e evitar replay.
 }
 
 // Storage keys for PKCE flow

@@ -1,5 +1,5 @@
 /**
- * Auth module types
+ * Tipos do módulo de auth.
  */
 
 // Re-export from infra for module use

@@ -1,6 +1,6 @@
 /**
- * Auth Context and Provider for React
- * Provides auth state and methods to the app
+ * Context e Provider de auth para React.
+ * Expõe estado e métodos de auth para a aplicação.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
@@ -123,8 +123,6 @@ export function useAuthCallback() {
   const handleCallback = useCallback(
     async (url: string) => {
       await authProvider.handleCallback(url)
-
-
     },
     [authProvider]
   )

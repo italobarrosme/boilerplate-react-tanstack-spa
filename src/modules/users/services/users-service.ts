@@ -1,6 +1,6 @@
 /**
- * Users service - API calls via gateway
- * Pure functions, no direct HTTP client usage
+ * Serviço de usuários — chamadas à API via gateway.
+ * Funções puras, sem uso direto do cliente HTTP.
  */
 
 import { apiGateway } from '@/infra/http'

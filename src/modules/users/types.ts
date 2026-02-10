@@ -1,5 +1,5 @@
 /**
- * Users module types
+ * Tipos do módulo de usuários.
  */
 
 export type User = {

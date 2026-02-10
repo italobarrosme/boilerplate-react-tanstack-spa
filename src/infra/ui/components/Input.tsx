@@ -1,6 +1,6 @@
 /**
- * Input component
- * Presentational component - no business logic
+ * Componente Input.
+ * Apresentacional — sem lógica de negócio.
  */
 
 import { forwardRef } from 'react'

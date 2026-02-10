@@ -1,6 +1,6 @@
 /**
- * API Gateway - the single entry point for all HTTP calls from modules
- * Abstracts away the HTTP client implementation (Ky)
+ * API Gateway — ponto único de entrada para todas as chamadas HTTP dos módulos.
+ * Abstrai a implementação do cliente HTTP (Ky).
  */
 
 import { kyClient, kyPublicClient } from './ky-client'

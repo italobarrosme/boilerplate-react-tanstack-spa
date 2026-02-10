@@ -1,6 +1,6 @@
 /**
- * Users hooks - business logic orchestration
- * Uses TanStack Query for server state management
+ * Hooks de usuários — orquestração da lógica de negócio.
+ * Usa TanStack Query para estado do servidor.
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'

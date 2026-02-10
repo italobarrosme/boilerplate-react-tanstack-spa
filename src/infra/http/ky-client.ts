@@ -1,6 +1,6 @@
 /**
- * Ky HTTP client configuration
- * This is an internal implementation detail - modules should use api-gateway.ts
+ * Configuração do cliente HTTP Ky.
+ * Detalhe de implementação interno — os módulos devem usar api-gateway.ts.
  */
 
 import ky from 'ky'

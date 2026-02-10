@@ -1,6 +1,6 @@
 /**
- * Environment variables with runtime validation
- * All VITE_* variables are exposed to the client
+ * Variáveis de ambiente com validação em runtime.
+ * Todas as variáveis VITE_* são expostas ao cliente.
  */
 
 function getEnvVar(key: string, required = true): string {

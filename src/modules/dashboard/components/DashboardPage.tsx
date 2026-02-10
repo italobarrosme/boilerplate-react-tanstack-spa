@@ -1,6 +1,6 @@
 /**
- * Dashboard page component
- * Presentational - receives all data via hooks
+ * Componente da página do dashboard.
+ * Apresentacional — recebe todos os dados via hooks.
  */
 
 import { BarChart3, Users } from 'lucide-react'

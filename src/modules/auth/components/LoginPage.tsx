@@ -1,6 +1,6 @@
 /**
- * Login page component
- * Presentational - receives all data via hooks
+ * Componente da página de login.
+ * Apresentacional — recebe todos os dados via hooks.
  */
 
 import { useNavigate, useSearch } from '@tanstack/react-router'
